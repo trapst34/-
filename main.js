@@ -1,127 +1,116 @@
-// Определяем мобильное устройство
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-// Инициализация сцены
+// Создание сцены, камеры и рендера
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setClearColor(0x000000); // Черный фон
 document.body.appendChild(renderer.domElement);
 
-// Источник света
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(2, 2, 5);
+// Добавляем свет
+const light = new THREE.DirectionalLight(0xffffff, 2);
+light.position.set(2, 2, 2).normalize();
 scene.add(light);
+
+const ambientLight = new THREE.AmbientLight(0x404040, 2);
+scene.add(ambientLight);
 
 // Загрузка 3D-модели сердца
 const loader = new THREE.GLTFLoader();
-loader.load('model/heart/Heart.glb', function(gltf) {
-    const heart = gltf.scene;
+let heart;
+
+loader.load('models/heart/Heart.glb', function (gltf) {
+    heart = gltf.scene;
     heart.position.set(0, 0, 0);
-    heart.scale.set(0.5, 0.5, 0.5);
+    
+    // Определяем масштаб в зависимости от устройства
+    const isMobile = window.innerWidth < 768;
+    const scaleFactor = isMobile ? 0.3 : 0.5;
+    heart.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
     scene.add(heart);
-}, undefined, function(error) {
+}, undefined, function (error) {
     console.error('Ошибка загрузки модели:', error);
 });
 
-camera.position.z = isMobile ? 4 : 3; // Отодвигаем камеру дальше на мобилке
+// Устанавливаем камеру
+camera.position.z = 2;
 
-// Управление вращением (мышь + touch)
-let isDragging = false, prevX = 0, prevY = 0, rotationX = 0, rotationY = 0;
+// Анимация вращения сердца
+let isDragging = false;
+let previousMousePosition = { x: 0, y: 0 };
+const rotationSpeed = 0.005;
 
-const startRotation = (x, y) => {
+// Обработчики событий для вращения модели
+function onMouseDown(event) {
     isDragging = true;
-    prevX = x;
-    prevY = y;
-};
+    previousMousePosition = { x: event.clientX, y: event.clientY };
+}
 
-const moveRotation = (x, y) => {
-    if (isDragging && heart) {
-        const deltaX = x - prevX;
-        const deltaY = y - prevY;
-        rotationY += deltaX * 0.005;
-        rotationX += deltaY * 0.005;
-        heart.rotation.y = rotationY;
-        heart.rotation.x = rotationX;
-        prevX = x;
-        prevY = y;
-    }
-};
+function onMouseMove(event) {
+    if (!isDragging || !heart) return;
 
-const stopRotation = () => {
+    const deltaX = event.clientX - previousMousePosition.x;
+    const deltaY = event.clientY - previousMousePosition.y;
+    
+    heart.rotation.y += deltaX * rotationSpeed;
+    heart.rotation.x += deltaY * rotationSpeed;
+
+    previousMousePosition = { x: event.clientX, y: event.clientY };
+}
+
+function onMouseUp() {
     isDragging = false;
-};
+}
 
-// Обработчики для ПК (мышь)
-document.addEventListener('mousedown', (e) => startRotation(e.clientX, e.clientY));
-document.addEventListener('mousemove', (e) => moveRotation(e.clientX, e.clientY));
-document.addEventListener('mouseup', stopRotation);
-
-// Обработчики для мобильных устройств (тач)
-document.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) {
-        startRotation(e.touches[0].clientX, e.touches[0].clientY);
-    }
-});
-document.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 1) {
-        moveRotation(e.touches[0].clientX, e.touches[0].clientY);
-    }
-});
-document.addEventListener('touchend', stopRotation);
-
-// Функция возвращения в исходное положение
-function resetRotation() {
-    if (heart) {
-        heart.rotation.x += (initialRotation.x - heart.rotation.x) * 0.05;
-        heart.rotation.y += (initialRotation.y - heart.rotation.y) * 0.05;
-        heart.rotation.z += (initialRotation.z - heart.rotation.z) * 0.05;
+// Поддержка сенсорных экранов
+function onTouchStart(event) {
+    if (event.touches.length === 1) {
+        isDragging = true;
+        previousMousePosition = { x: event.touches[0].clientX, y: event.touches[0].clientY };
     }
 }
 
-// Анимация снега
-const snowflakes = [];
-const snowGeometry = new THREE.BufferGeometry();
-const snowMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.02 });
+function onTouchMove(event) {
+    if (!isDragging  !heart  event.touches.length !== 1) return;
 
-const snowCount = isMobile ? 300 : 500; // Меньше снежинок на мобильных для оптимизации
-const positions = new Float32Array(snowCount * 3);
+    const deltaX = event.touches[0].clientX - previousMousePosition.x;
+    const deltaY = event.touches[0].clientY - previousMousePosition.y;
 
-for (let i = 0; i < snowCount; i++) {
-    positions[i * 3] = (Math.random() - 0.5) * 10;
-    positions[i * 3 + 1] = Math.random() * 5;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 10;
-    snowflakes.push({ x: positions[i * 3], y: positions[i * 3 + 1], z: positions[i * 3 + 2] });
+    heart.rotation.y += deltaX * rotationSpeed;
+    heart.rotation.x += deltaY * rotationSpeed;
+
+    previousMousePosition = { x: event.touches[0].clientX, y: event.touches[0].clientY };
 }
 
-snowGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-const snowParticles = new THREE.Points(snowGeometry, snowMaterial);
-scene.add(snowParticles);
+function onTouchEnd() {
+    isDragging = false;
+}
 
-// Анимация сцены
+// Добавляем обработчики событий
+window.addEventListener('mousedown', onMouseDown);
+window.addEventListener('mousemove', onMouseMove);
+window.addEventListener('mouseup', onMouseUp);
+
+window.addEventListener('touchstart', onTouchStart);
+window.addEventListener('touchmove', onTouchMove);
+window.addEventListener('touchend', onTouchEnd);
+
+// Функция анимации
 function animate() {
     requestAnimationFrame(animate);
-    if (heart) resetRotation();
-
-    // Анимация снега
-    const positions = snowGeometry.attributes.position.array;
-    for (let i = 0; i < snowCount; i++) {
-        positions[i * 3 + 1] -= 0.02;
-        if (positions[i * 3 + 1] < -2.5) {
-            positions[i * 3 + 1] = 2.5;
-        }
+    
+    // Возвращаем сердце в исходное положение, если не вращают
+    if (!isDragging && heart) {
+        heart.rotation.x *= 0.95;
+        heart.rotation.y *= 0.95;
     }
-    snowGeometry.attributes.position.needsUpdate = true;
 
     renderer.render(scene, camera);
 }
-
 animate();
 
-// Адаптация под размер окна
-window.addEventListener('resize', () => {
-    renderer.setSize(window.innerWidth, window.innerHeight);
+// Обновление размеров при изменении окна
+window.addEventListener('resize', function () {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
 });
